@@ -1,59 +1,55 @@
-const axios = require("axios");
+const fs = require("fs");
+const { join } = require("path");
 
 module.exports = {
   config: {
     name: "rndm",
-    aliases: ["mahabub", "rndm", "random", "status"],
-    version: "2.2",
-    author: "‎MR᭄﹅ MAHABUB﹅ メꪜ",
+    aliases: ["rndm", "random", "status"],
+    version: "2.3",
+    author: "‎N I R O B",
     countDown: 1,
     role: 0,
     shortDescription: "Sends random videos",
-    longDescription: "Fetches and sends a random video from an external JSON file.",
+    longDescription: "Sends a random video from local storage.",
     category: "fun",
     guide: "{pn}"
   },
 
   onStart: async function ({ api, event, message }) {
-    await sendAnimeVideo(api, event, message);
+    await sendLocalVideo(api, event, message);
   },
 
   onChat: async function ({ api, event, message }) {
     const { body } = event;
     if (!body) return;
-
     const messageText = body.trim().toLowerCase();
 
     if (["rndm", "mahabub", "random", "status"].includes(messageText)) {
-      await sendAnimeVideo(api, event, message);
+      await sendLocalVideo(api, event, message);
     }
   }
 };
 
 let lastMessage = "";
 
-async function sendAnimeVideo(api, event, message) {
-  const { threadID, messageID } = event;
-
-  message.reply("🔄 Fetching a random status video... Please wait!");
-
-  const jsonUrl = "https://raw.githubusercontent.com/MR-MAHABUB-004/MAHABUB-BOT-STORAGE/main/Commands/Rndm/rndm.json";
+async function sendLocalVideo(api, event, message) {
+  const { threadID } = event;
 
   try {
-    const response = await axios.get(jsonUrl);
-    const data = response.data;
+    const jsonPath = join(__dirname, "data", "rndm.json");
+    const data = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 
     if (!data.videos || data.videos.length === 0) {
-      return message.reply("❌ No videos found. Please try again later.");
+      return message.reply("❌ No videos found. Please add some first.");
     }
 
-    // Select a random video
-    const randomVideo = data.videos[Math.floor(Math.random() * data.videos.length)];
+    const randomVideoName = data.videos[Math.floor(Math.random() * data.videos.length)];
+    const videoPath = join(__dirname, "data", "videos", randomVideoName);
 
-    // Validate the video URL
-    if (!randomVideo.startsWith("http")) {
-      return message.reply("❌ Invalid video URL. Please try again later.");
+    if (!fs.existsSync(videoPath)) {
+      return message.reply("❌ Video file not found.");
     }
+
     let randomMessage;
     if (data.messages && data.messages.length > 0) {
       let uniqueMessages = data.messages.filter(msg => msg !== lastMessage);
@@ -61,18 +57,18 @@ async function sendAnimeVideo(api, event, message) {
         ? uniqueMessages[Math.floor(Math.random() * uniqueMessages.length)] 
         : lastMessage;
     } else {
-      randomMessage = "video title unfind..!";
+      randomMessage = "Here's your random video!";
     }
 
-    lastMessage = randomMessage; 
+    lastMessage = randomMessage;
 
     message.reply({
       body: randomMessage,
-      attachment: await global.utils.getStreamFromURL(randomVideo)
+      attachment: fs.createReadStream(videoPath)
     });
-
+    
   } catch (error) {
-    console.error("❌ Error fetching video:", error);
-    return message.reply("❌ Failed to load video. Please try again later.");
+    console.error("❌ Error sending local video:", error);
+    return message.reply("❌ Failed to send video. Please try again.");
   }
 }
