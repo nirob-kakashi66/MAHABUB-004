@@ -1,5 +1,6 @@
-const DIG = require("discord-image-generation");
+ const DIG = require("discord-image-generation");
 const fs = require("fs-extra");
+
 module.exports = {
 	config: {
 		name: "blink",
@@ -16,24 +17,42 @@ module.exports = {
 			en: "generate blinking gifs with profile pictures"
 		},
 		category: "image",
-		guide: "{pn} mention as many as you want",
-
+		guide: "{pn} @mention"
 	},
 
-onStart: async function ({ event, message, getLang, usersData}) {
-	let ids = Object.keys(event.mentions)
+	onStart: async function ({ event, message, usersData }) {
+		try {
+			const mentionIDs = Object.keys(event.mentions);
+			const senderAvatar = await usersData.getAvatarUrl(event.senderID);
+			let targetAvatar;
 
-let links = []
-links.push(await usersData.getAvatarUrl(event.senderID))
-for (var item of ids){
-links.push(await usersData.getAvatarUrl(item))
-}
-	console.log(1000, links)
-const img = await new DIG.Blink().getImage(150, ...links)
-		const pathSave = `${__dirname}/tmp/Blink.gif`;
-		fs.writeFileSync(pathSave, Buffer.from(img));
-		message.reply({
-			attachment: fs.createReadStream(pathSave)
-		}, () => fs.unlinkSync(pathSave));
+			// Use self if no mentions
+			if (mentionIDs.length === 0) {
+				targetAvatar = senderAvatar;
+			} else {
+				targetAvatar = await usersData.getAvatarUrl(mentionIDs[0]);
+			}
+
+			// Safety checks
+			if (!senderAvatar || !targetAvatar) {
+				return message.reply("⚠️ Couldn't fetch one or both avatar URLs.");
+			}
+
+			const img = await new DIG.Blink().getImage(150, senderAvatar, targetAvatar);
+			if (!img) {
+				return message.reply("❌ Image generation failed.");
+			}
+
+			const pathSave = `${__dirname}/tmp/Blink.gif`;
+			await fs.writeFileSync(pathSave, Buffer.from(img));
+
+			message.reply({
+				body: "✨ Blink Generated!",
+				attachment: fs.createReadStream(pathSave)
+			}, () => fs.unlinkSync(pathSave));
+		} catch (err) {
+			console.error("❌ Blink command error:", err);
+			message.reply("❌ An error occurred while creating the blink image.");
+		}
 	}
 };
